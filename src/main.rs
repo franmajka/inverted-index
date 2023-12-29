@@ -1,15 +1,23 @@
 mod inverted_index;
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
-use inverted_index::InvertedIndex;
+use threadpool::ThreadPool;
 
 fn main() {
-  let root_folder = PathBuf::from_iter([std::env::current_dir().unwrap(), PathBuf::from("test")]);
-  println!("{:?}", root_folder);
-  let index = InvertedIndex::with_root_folder(&root_folder);
-  println!("{:?}", index);
+  let root_folder = PathBuf::from_iter([std::env::current_dir().unwrap(), PathBuf::from("datasets/aclImdb")]);
+  // println!("{:?}", root_folder);
 
-  println!("{:?}", index.search("hello"));
-  println!("{:?}", index.search("hey"));
+  let start_time = std::time::Instant::now();
+  let thread_pool = Arc::new(ThreadPool::new(3));
+  let index = inverted_index::Builder::new()
+    .thread_pool(thread_pool)
+    .root_folder(root_folder)
+    .build();
+
+  println!("Indexing took {}s", start_time.elapsed().as_secs_f64());
+  // println!("{:#?}", index);
+
+  // println!("{:?}", index.search("apple"));
+  // println!("{:?}", index.search("hey"));
 }
