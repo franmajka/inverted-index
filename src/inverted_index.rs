@@ -151,3 +151,9 @@ impl InvertedIndex {
     self.index.clear();
   }
 }
+
+impl PartialEq for InvertedIndex {
+  fn eq(&self, other: &Self) -> bool {
+    self.index == other.index
+  }
+}
