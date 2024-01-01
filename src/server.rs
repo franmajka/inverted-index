@@ -87,23 +87,21 @@ fn sleep_handler() -> Response {
 }
 
 fn search_handler(path: &str, index: Arc<inverted_index::InvertedIndex>) -> Response {
-  match serde_qs::from_str::<Query>(&path[format!("{SEARCH}?").len()..]) {
-    Ok(query) => {
-      let Query { query } = query;
-      match index.search(query.as_str()) {
-        Some(results) => {
-          let res = serde_json::to_string(
-            &results.iter()
-              .take(100)
-              .map(|path| path.to_str().unwrap())
-              .collect::<Vec<&str>>()
-          ).unwrap();
+  let ok = format!("{HTTP_VERSION} {OK}");
+  let not_found = format!("{HTTP_VERSION} {NOT_FOUND}");
+  let bad_request = format!("{HTTP_VERSION} {BAD_REQUEST}");
 
-          format!("{HTTP_VERSION} {OK}\r\nContent-Length: {len}\r\n\r\n{res}", len = res.len())
-        },
-        None => format!("{HTTP_VERSION} {NOT_FOUND}")
-      }
-    },
-    Err(_) => format!("{HTTP_VERSION} {BAD_REQUEST}")
-  }
+  let Some(qs) = path.split('?').nth(1) else { return bad_request };
+  let Ok(Query { query }) = serde_qs::from_str::<Query>(&qs) else { return bad_request };
+
+  let Some(results) = index.search(&query) else { return not_found };
+
+  let res = serde_json::to_string(
+    &results.iter()
+      .take(100)
+      .map(|path| path.to_str().unwrap())
+      .collect::<Vec<&str>>()
+  ).unwrap();
+
+  format!("{ok}\r\nContent-Length: {content_length}\r\n\r\n{res}", content_length = res.len())
 }

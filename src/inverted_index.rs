@@ -60,6 +60,10 @@ impl InvertedIndex {
       .build()
   }
 
+  pub fn set_thread_pool(&mut self, thread_pool: Arc<ThreadPool>) {
+    self.thread_pool = Some(thread_pool);
+  }
+
   pub fn index_folder(&mut self, folder: &PathBuf) {
     if !folder.is_dir() {
       return;
@@ -70,12 +74,8 @@ impl InvertedIndex {
 
       if path.is_dir() {
         self.index_folder(&path);
-      } else if path.is_file() {
-        if let Some(ext) = path.extension() {
-          if ext == "txt" {
-            self.index_file(path);
-          }
-        }
+      } else if path.is_file() && matches!(path.extension(), Some(ext) if ext == "txt") {
+        self.index_file(path);
       }
     }
   }
@@ -88,6 +88,7 @@ impl InvertedIndex {
     let thread_pool = self.thread_pool.as_ref()
       .expect("Thread pool has to be set to perform parallel indexing");
     let (sender, receiver) = channel();
+
     let mut stack = vec![folder.clone()];
 
     while let Some(dir) = stack.pop() {
@@ -96,17 +97,11 @@ impl InvertedIndex {
 
         if path.is_dir() {
           stack.push(path);
-        } else if path.is_file() {
-          if let Some(ext) = path.extension() {
-            if ext != "txt" {
-              continue;
-            }
-
-            let tx = sender.clone();
-            thread_pool.execute(move || {
-              tx.send((InvertedIndex::read_words(&path), path)).unwrap();
-            });
-          }
+        } else if path.is_file() && matches!(path.extension(), Some(ext) if ext == "txt") {
+          let tx = sender.clone();
+          thread_pool.execute(move || {
+            tx.send((InvertedIndex::read_words(&path), path)).unwrap();
+          });
         }
       }
     }
@@ -127,20 +122,16 @@ impl InvertedIndex {
   }
 
   fn read_words(path: &PathBuf) -> HashSet<String> {
-    let mut words = HashSet::new();
-
-    if let Ok(contents) = std::fs::read_to_string(&path) {
-      for word in contents.split_whitespace() {
-        let mut word = word.to_lowercase();
-        word.retain(|c| c.is_alphanumeric());
-
-        if word.len() > 0 {
-          words.insert(word);
-        }
-      }
-    }
-
-    words
+    std::fs::read_to_string(&path)
+      .unwrap_or(String::new())
+      .split_whitespace()
+      .map(|word| word.chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>()
+        .to_lowercase()
+      )
+      .filter(|word| word.len() > 0)
+      .collect()
   }
 
   fn insert_words(&mut self, words: HashSet<String>, path: PathBuf) {
@@ -154,5 +145,9 @@ impl InvertedIndex {
 
   pub fn search(&self, word: &str) -> Option<&HashSet<Arc<PathBuf>>> {
     self.index.get(word)
+  }
+
+  pub fn clear(&mut self) {
+    self.index.clear();
   }
 }
