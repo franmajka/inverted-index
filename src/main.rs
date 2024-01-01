@@ -1,6 +1,9 @@
 mod inverted_index;
 mod server;
 
+#[cfg(test)]
+mod tests;
+
 use std::{
   path::PathBuf,
   sync::Arc,
@@ -12,7 +15,7 @@ use threadpool::ThreadPool;
 fn main() {
   let root_folder = PathBuf::from_iter([
     std::env::current_dir().unwrap(),
-    PathBuf::from("datasets/aclImdb/train/pos")
+    PathBuf::from("datasets/aclImdb")
   ]);
 
   let start_time = Instant::now();
